@@ -1,1 +1,29 @@
 # EmotionalAudio
+
+# Project structure
+- data/
+    - raw/
+    - preprocessed/
+- models/
+    - best_model/
+    - preprocessors/
+- notebooks/
+- reports/
+- stages/
+    - data_engineering/
+        - config/
+        - src/
+        - main.py
+    - model_engineering/
+        - config/
+        - src/
+        - main.py
+    - deployment/
+        - api/
+        - app/
+- services/
+    - airflow/
+        - dags/
+        - plugins/
+        - tests/
+- docker-compose.yaml
