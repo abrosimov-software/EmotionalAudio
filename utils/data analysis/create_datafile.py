@@ -25,7 +25,8 @@ emotional_intensity_map = {
 
 dataset = []
 
-audiofiles_dir = 'Audiofiles'
+current_dir = os.path.dirname(os.path.abspath(__file__))
+audiofiles_dir = os.path.join(current_dir, '../../data/raw/audiofiles')
 
 for filename in os.listdir(audiofiles_dir):
     if filename.endswith(".wav"):
@@ -50,4 +51,4 @@ for filename in os.listdir(audiofiles_dir):
 
 df = pd.DataFrame(dataset)
 
-df.to_csv('audiofile_dataset.csv', index=False)
+df.to_csv(os.path.join(current_dir, '../../data/raw/audiofile_dataset.csv'), index=False)

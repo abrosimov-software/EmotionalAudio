@@ -1,9 +1,8 @@
 import os
 import pandas as pd
-import librosa
-import numpy as np
 
-audio_features_df = pd.read_csv('audiofile_dataset_with_features.csv.csv')
+current_dir = os.path.dirname(os.path.abspath(__file__))
+audio_features_df = pd.read_csv(os.path.join(current_dir, '../../data/raw/audiofile_dataset_with_features.csv'))
 
 mfcc_means = audio_features_df.filter(like='mfcc_mean').mean(axis=1)
 mfcc_vars = audio_features_df.filter(like='mfcc_var').mean(axis=1)
@@ -23,10 +22,8 @@ merged_features_df = pd.DataFrame({
     'duration': audio_features_df['duration']
 })
 
-df = pd.read_csv('audiofile_dataset.csv')
+df = pd.read_csv(os.path.join(current_dir, '../../data/raw/audiofile_dataset.csv'))
 
 df_with_merged_features = pd.concat([df, merged_features_df], axis=1)
 
-df_with_merged_features.to_csv('audiofile_dataset_with_merged_features.csv', index=False)
-
-print("Dataset with merged audio features saved as 'audiofile_dataset_with_merged_features.csv'")
+df_with_merged_features.to_csv(os.path.join(current_dir, '../../data/raw/audiofile_dataset_with_merged_features.csv'), index=False)
