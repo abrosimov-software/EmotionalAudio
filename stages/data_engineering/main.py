@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException, Body
 from typing import Optional, List
+import src # all the custom modules should be implemented in src folder
 
 app = FastAPI()
 
