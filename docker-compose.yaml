@@ -9,22 +9,23 @@ services:
       - PORT = 8080
       - HOST = 0.0.0.0
       - WORKERS = 4
+      - MLFLOW_TRACKING_URI=http://localhost:8080
+      - MLFLOW_EXPERIMENT_NAME=ml_experiment
     volumes:
       - ./data:/app/data
-
+      
   model_engineering:
     build:
       context: ./stages/model_engineering
       dockerfile: Dockerfile
+    volumes:
+      - ./data/preprocessed:/app/data/training_data
+    environment:
+      - PORT=8081
+      - MLFLOW_TRACKING_URI=http://localhost:8081
+      - MLFLOW_EXPERIMENT_NAME=ml_experiment
     ports:
       - "8081:8081"
-    environment:
-      - PORT = 8081
-      - HOST = 0.0.0.0
-    depends_on:
-      - data_engineering
-    volumes:
-      - ./data/preprocessed:/app/training_data
       
 
   # model_api:
