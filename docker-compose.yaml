@@ -1,10 +1,35 @@
 services:
+  data_engineering:
+    build:
+      context: ./stages/data_engineering
+      dockerfile: Dockerfile
+    environment:
+      - PORT = 8080
+      - HOST = 0.0.0.0
+      - WORKERS = 4
+    volumes:
+      - data:/app/data
+
+  model_engineering:
+    build:
+      context: ./stages/model_engineering
+      dockerfile: Dockerfile
+    environment:
+      - PORT = 8081
+      - HOST = 0.0.0.0
+      - WORKERS = 4
+    depends_on:
+      - data_engineering
+    volumes:
+      - data/preprocessed:/app/training_data
+      
+
   modelAPI:
     build:
       context: ./stages/deployment/api
       dockerfile: Dockerfile
     environment:
-      - PORT=8000
+      - PORT=8082
       - HOST=0.0.0.0
       - WORKERS=4
     depends_on:
