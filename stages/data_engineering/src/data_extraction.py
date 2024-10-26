@@ -1,0 +1,1 @@
+# Extract data from the folder /app/data/raw or /app/data/preprocessed
