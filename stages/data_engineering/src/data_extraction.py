@@ -4,6 +4,10 @@ from pydub import AudioSegment
 import requests
 import zipfile
 import io
+from microservice.src.feature_extraction import create_datafile
+import torch
+import torchaudio
+import numpy as np
 
 def collect_data():
     current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -33,5 +37,5 @@ def extract_data(source: Optional[str] = None):
         for filename in os.listdir(folder):
             dataframe[filename] = AudioSegment.from_file(filename)
         dataset[folder] = dataframe
-    
+
     return dataset
