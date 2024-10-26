@@ -31,9 +31,9 @@ class AudioDataset(Dataset):
         return audio, features, labels
 
 # Set the directories
-audio_dir = 'data/preprocessed/audiofiles'
-features_dir = 'data/preprocessed/features'
-labels_dir = 'data/preprocessed/labels'
+audio_dir = '../../data/preprocessed/audiofiles'
+features_dir = '../../data/preprocessed/features'
+labels_dir = '../../data/preprocessed/labels'
 
 # Instantiate the dataset and dataloader
 dataset = AudioDataset(audio_dir, features_dir, labels_dir)
