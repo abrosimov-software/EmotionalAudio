@@ -1,0 +1,5 @@
+simple_lstm:
+  lstm:
+    input_size: 1
+    hidden_size: 2
+    num_layers: 1

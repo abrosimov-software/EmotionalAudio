@@ -21,7 +21,7 @@ class LSTMModel(nn.Module):
         self.fc = nn.LazyLinear(output_size)
 
     def forward(self, x):
-        lstm_out, _ = self.lstm(x)
+        lstm_out, _ = self.lstm(x.permute(0, 2, 1))  # (batch, seq, feature) -> (batch, feature, seq)
 
         out = self.fc(lstm_out)
 

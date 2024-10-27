@@ -1,69 +1,46 @@
-from src import RandomEmotionDetector
+from src.utils import *
+from src.models.base_lstm_mpool import LSTMModel
 import torch
 import mlflow
 import mlflow.pytorch
 import os
+import yaml
 
-# Set the experiment name
-experiment_name = "emotion_detection"
-mlflow.set_experiment(experiment_name)
+# Load model config from /app/config/models.yaml
+model_cfg = yaml.safe_load(open("/app/config/models.yaml"))
 
-# Create a new run
-with mlflow.start_run():
-    # Create a model
-    model = RandomEmotionDetector()
-    # Set the optimizer
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-    # Set the loss function
-    criterion = torch.nn.CrossEntropyLoss()
-    # Set the number of epochs
-    epochs = 10
-    # Set the batch size
-    batch_size = 32
+# Load dataset
+data_path = "/app/data/training_data"
+dataset = AnotherAudioDataset(data_path)
 
-    # Train the model
-    for epoch in range(epochs):
-        # Train the model
-        for i in range(100):
-            # Generate random input data
-            x = torch.randn(batch_size, 1, 128)
-            y = torch.randint(0, 7, (batch_size,))
-            # Zero the gradients
-            optimizer.zero_grad()
-            # Forward pass
-            outputs = model(x)
-            # Calculate the loss
-            loss = criterion(outputs, y)
-            # Backward pass
-            loss.backward()
-            # Update the weights
-            optimizer.step()
-        # Log the loss
-        mlflow.log_metric("loss", loss.item())
-        print(f"Epoch {epoch + 1}/{epochs}, Loss: {loss.item()}")
-    # Save the model
-    mlflow.pytorch.log_model(model, "model")
-    # Save the model parameters
-    torch.save(model.state_dict(), "model.pth")
-    # Save the model architecture
-    with open("model.txt", "w") as f:
-        f.write(str(model))
-    # Save the model artifacts
-    mlflow.log_artifact("model.pth")
-    mlflow.log_artifact("model.txt")
-    # Save the model parameters
-    mlflow.log_param("epochs", epochs)
-    mlflow.log_param("batch_size", batch_size)
-    mlflow.log_param("num_classes", model.num_classes)
-    # Save the model parameters
-    mlflow.log_param("optimizer", optimizer)
-    mlflow.log_param("criterion", criterion)
-    # Save the model parameters
-    mlflow.log_param("experiment_name", experiment_name)
-    mlflow.log_param("model_name", "RandomEmotionDetector")
-    mlflow.log_param("model_type", "pytorch")
-    mlflow.log_param("model_version", "1.0.0")
-    mlflow.log_param("model_description", "Random classifier for testing purposes")
-    mlflow.log_param("model_author", "John Doe")
-    mlflow.log_param("model_date", "2022-01-01")
-    mlflow.log_param("model_license", "MIT")
+# Test the dataset
+for audio, emotion, identifiers in dataset:
+    print(audio.shape, emotion, identifiers)
+    break
+
+# Create data loaders
+train_loader, test_loader = create_data_loaders(dataset, batch_size=8)
+
+# Test the data loaders
+for audio, emotion, identifiers in train_loader:
+    print(audio.shape, emotion, identifiers)
+    break
+
+# Define model
+model = LSTMModel(model_cfg["simple_lstm"], dataset.num_classes)
+
+# Test the model output on a batch
+for audio, emotion, identifiers in train_loader:
+    output = model(audio)
+    print(output.shape, calculate_loss(output, emotion))
+    break
+
+# Train the model
+optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model = model.to(device)
+for epoch in range(10):
+    print(train_model(model, train_loader, optimizer, device))
+
+    
+

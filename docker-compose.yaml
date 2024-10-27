@@ -6,26 +6,37 @@ services:
     ports:
       - "8080:8080"
     environment:
-      - PORT = 8080
-      - HOST = 0.0.0.0
-      - WORKERS = 4
+      - PORT=8080
+      - HOST=0.0.0.0
+      - WORKERS=4
       - MLFLOW_TRACKING_URI=http://localhost:8080
       - MLFLOW_EXPERIMENT_NAME=ml_experiment
     volumes:
       - ./data:/app/data
-      
+
   model_engineering:
     build:
       context: ./stages/model_engineering
       dockerfile: Dockerfile
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     volumes:
-      - ./data/preprocessed:/app/data/training_data
+      - ./data/raw/audiofiles:/app/data/training_data
     environment:
       - PORT=8081
       - MLFLOW_TRACKING_URI=http://localhost:8081
       - MLFLOW_EXPERIMENT_NAME=ml_experiment
     ports:
       - "8081:8081"
+    labels:
+      - "devcontainer.context=./stages/model_engineering"
+    command: tail -f /dev/null  # This keeps the container running for testing purposes
+
       
 
   # model_api:
