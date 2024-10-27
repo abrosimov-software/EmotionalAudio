@@ -51,40 +51,40 @@ class CNNTransformerWithFeatures(nn.Module):
 
         return self.fc(combined)
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-inp_stacked_batch = spectrogram_batch.to(device)  
-inp_stacked_batch = inp_stacked_batch.unsqueeze(1) if inp_stacked_batch.dim() == 3 else inp_stacked_batch
+# inp_stacked_batch = spectrogram_batch.to(device)  
+# inp_stacked_batch = inp_stacked_batch.unsqueeze(1) if inp_stacked_batch.dim() == 3 else inp_stacked_batch
 
-num_classes = int(labels_tensor.max().item()) + 1  
-feature_size = additional_features_tensor.shape[1]  
+# num_classes = int(labels_tensor.max().item()) + 1  
+# feature_size = additional_features_tensor.shape[1]  
 
-model = CNNTransformerWithFeatures(num_classes=num_classes, feature_size=feature_size)
+# model = CNNTransformerWithFeatures(num_classes=num_classes, feature_size=feature_size)
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-additional_features_tensor = additional_features_tensor.to(device)
-labels_tensor = labels_tensor.to(device)
+# additional_features_tensor = additional_features_tensor.to(device)
+# labels_tensor = labels_tensor.to(device)
 
-criterion = nn.CrossEntropyLoss()
-optimizer = optim.Adam(model.parameters(), lr=0.001)
+# criterion = nn.CrossEntropyLoss()
+# optimizer = optim.Adam(model.parameters(), lr=0.001)
 
-num_epochs = 1  
-for epoch in range(num_epochs):
-    model.train() 
+# num_epochs = 1  
+# for epoch in range(num_epochs):
+#     model.train() 
 
-    outputs = model(inp_stacked_batch, additional_features_tensor)
-    loss = criterion(outputs, labels_tensor)
+#     outputs = model(inp_stacked_batch, additional_features_tensor)
+#     loss = criterion(outputs, labels_tensor)
 
-    optimizer.zero_grad()
-    loss.backward()
-    optimizer.step()
+#     optimizer.zero_grad()
+#     loss.backward()
+#     optimizer.step()
 
-    print(f"Epoch [{epoch + 1}/{num_epochs}], Loss: {loss.item():.4f}")
+#     print(f"Epoch [{epoch + 1}/{num_epochs}], Loss: {loss.item():.4f}")
 
-model.eval() 
-with torch.no_grad():
-    predictions = model(inp_stacked_batch, additional_features_tensor)
-    predicted_classes = torch.argmax(predictions, dim=1)
-    print("Predicted Classes:", predicted_classes.cpu().numpy()) 
+# model.eval() 
+# with torch.no_grad():
+#     predictions = model(inp_stacked_batch, additional_features_tensor)
+#     predicted_classes = torch.argmax(predictions, dim=1)
+#     print("Predicted Classes:", predicted_classes.cpu().numpy()) 
     

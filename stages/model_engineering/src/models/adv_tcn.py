@@ -65,48 +65,48 @@ class TCNWithFeatures(nn.Module):
         output = self.fc(combined)
         return output
 
-input_height = spectrogram_batch.shape[2]
-num_classes = labels_tensor.max().item() + 1
-feature_size = additional_features_tensor.shape[1]
+# input_height = spectrogram_batch.shape[2]
+# num_classes = labels_tensor.max().item() + 1
+# feature_size = additional_features_tensor.shape[1]
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-inp_stacked_batch = spectrogram_batch.to(device)  
-inp_stacked_batch = inp_stacked_batch.unsqueeze(1) if inp_stacked_batch.dim() == 3 else inp_stacked_batch
+# device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# inp_stacked_batch = spectrogram_batch.to(device)  
+# inp_stacked_batch = inp_stacked_batch.unsqueeze(1) if inp_stacked_batch.dim() == 3 else inp_stacked_batch
 
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-model = TCNWithFeatures(input_height=input_height, feature_size=feature_size, num_classes=num_classes).to(device)
+# model = TCNWithFeatures(input_height=input_height, feature_size=feature_size, num_classes=num_classes).to(device)
 
-additional_features_tensor = additional_features_tensor.to(device)
-labels_tensor = labels_tensor.to(device)
+# additional_features_tensor = additional_features_tensor.to(device)
+# labels_tensor = labels_tensor.to(device)
 
-criterion = nn.CrossEntropyLoss()
-optimizer = optim.Adam(model.parameters(), lr=0.001)
+# criterion = nn.CrossEntropyLoss()
+# optimizer = optim.Adam(model.parameters(), lr=0.001)
 
-num_epochs = 20 
+# num_epochs = 20 
 
-for epoch in range(num_epochs):
-    model.train()
+# for epoch in range(num_epochs):
+#     model.train()
     
-    outputs = model(inp_stacked_batch, additional_features_tensor)
-    loss = criterion(outputs, labels_tensor)
+#     outputs = model(inp_stacked_batch, additional_features_tensor)
+#     loss = criterion(outputs, labels_tensor)
  
-    optimizer.zero_grad()
-    loss.backward()
-    optimizer.step()
+#     optimizer.zero_grad()
+#     loss.backward()
+#     optimizer.step()
     
-    print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {loss.item():.4f}")
+#     print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {loss.item():.4f}")
 
-def evaluate(model, inp_stacked_batch, additional_features_tensor, labels_tensor, criterion):
-    model.eval()
-    with torch.no_grad():
-        outputs = model(inp_stacked_batch, additional_features_tensor)
-        loss = criterion(outputs, labels_tensor)
-        predicted_classes = torch.argmax(outputs, dim=1)
+# def evaluate(model, inp_stacked_batch, additional_features_tensor, labels_tensor, criterion):
+#     model.eval()
+#     with torch.no_grad():
+#         outputs = model(inp_stacked_batch, additional_features_tensor)
+#         loss = criterion(outputs, labels_tensor)
+#         predicted_classes = torch.argmax(outputs, dim=1)
 
-        print("Predicted Classes:", predicted_classes.cpu().numpy()) 
-        print(f"Evaluation Loss: {loss.item():.4f}")
+#         print("Predicted Classes:", predicted_classes.cpu().numpy()) 
+#         print(f"Evaluation Loss: {loss.item():.4f}")
 
 
-evaluate(model, inp_stacked_batch, additional_features_tensor, labels_tensor, criterion)
+# evaluate(model, inp_stacked_batch, additional_features_tensor, labels_tensor, criterion)
