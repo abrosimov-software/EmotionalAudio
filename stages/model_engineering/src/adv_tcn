@@ -4,6 +4,86 @@ import torch.optim as optim
 import torch.nn.functional as F
 
 
+class TemporalBlock(nn.Module):
+    """
+    Temporal block
+    two convolutional layers, residual connection, optional downsampling.
+    """
+    def __init__(self, block_cfg):
+        super(TemporalBlock, self).__init__()
+
+        padding = (block_cfg["kernel_size"] - 1) * block_cfg["dilation"] // 2
+        self.conv1 = nn.Conv1d(**{**block_cfg, "padding": padding})
+
+        self.relu1 = nn.ReLU()
+        
+        self.conv2 = nn.Conv1d(**{**block_cfg, "padding": padding})
+
+        self.relu2 = nn.ReLU()
+
+        self.downsample = nn.Conv1d(block_cfg["in_channels"], block_cfg["out_channels"], 1) \
+            if block_cfg["in_channels"] != block_cfg["out_channels"] else None
+
+    def forward(self, x):
+        out = self.relu1(self.conv1(x))
+
+        out = self.relu2(self.conv2(out))
+        
+        if self.downsample is not None:
+            x = self.downsample(x)
+            
+        return F.relu(out + x)
+
+
+class TCNWithFeatures(nn.Module):
+    """
+    TCN model.
+    
+    Stack of temporal blocks
+    combination with additional features for final classification.
+    """
+    def __init__(self, model_cfg, output_size):
+        super(TCNWithFeatures, self).__init__()
+
+        layers = []
+
+        num_channels = [model_cfg["input_height"]] + [model_cfg["tcn"]["block_out_channels"]] * model_cfg["num_levels"]
+
+        for i in range(model_cfg["num_levels"]):
+            dilation_size = 2 ** i
+            block_cfg = {
+                "in_channels": num_channels[i],
+                "out_channels": num_channels[i + 1],
+                "kernel_size": model_cfg["tcn"]["kernel_size"],
+                "stride": model_cfg["tcn"]["stride"],
+                "dilation": dilation_size
+            }
+            layers.append(TemporalBlock(block_cfg))
+        self.tcn = nn.Sequential(*layers)
+        
+        self.fc_features = nn.Linear(model_cfg["additional_features_size"], model_cfg["tcn"]["block_out_channels"])
+
+        self.fc_final = nn.Linear(model_cfg["tcn"]["block_out_channels"] * 2, output_size)
+
+    def forward(self, spectrogram_batch, additional_features_tensor):
+        batch_size, _, height, width = spectrogram_batch.shape
+
+        x = spectrogram_batch.view(batch_size, height, width).permute(0, 2, 1)
+        
+        x = self.tcn(x)
+
+        x = x.mean(dim=2) 
+        
+        additional_features_proj = F.relu(self.fc_features(additional_features_tensor))
+
+        combined = torch.cat((x, additional_features_proj), dim=1)
+        
+        return self.fc_final(combined)
+
+
+
+
+
 # ##
 # spectrogram_batch = ... #audio tensor
 # additional_features_tensor = ... #features tensor

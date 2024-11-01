@@ -10,7 +10,7 @@ class LSTMModel(nn.Module):
     
     Uses nn.LSTM to process the audio input.
     Linear layer is used to bring the output to the desired output size.
-    Multiclass classification is done using CrossEntropyLoss.
+    Multiclass classification is done with the addition of extra features using CrossEntropyLoss.
     """
     def __init__(self, model_cfg, output_size):
         super(LSTMModel, self).__init__()

@@ -39,4 +39,38 @@ crnn:
   additional_features_size: 128
 
 
+transformer:
+  cnn:
+    conv1:
+      in_channels: 1
+      out_channels: 32
+      kernel_size: 3
+      stride: 1
+      padding: 1
+    pool1_kernel_size: 2
+    conv2:
+      in_channels: 32
+      out_channels: 64
+      kernel_size: 3
+      stride: 1
+      padding: 1
+    pool2_kernel_size: 2
+  transformer:
+    nhead: 8
+    dim_feedforward: 512
+    dropout: 0.1
+    num_layers: 6
+  additional_features_size: 128  
+  height: 345  # (channels, height, width) of spectrogram, same for tcn
+
+
+tcn_with_features:
+  input_height: 345
+  additional_features_size: 128
+  num_levels: 4
+
+  tcn:
+    block_out_channels: 64
+    kernel_size: 3
+    stride: 1
 
