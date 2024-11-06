@@ -26,6 +26,7 @@ services:
               count: all
               capabilities: [gpu]
     volumes:
+      - ./stages/model_engineering:/app
       - ./data/raw/audiofiles:/app/data/training_data
     environment:
       - PORT=8081
