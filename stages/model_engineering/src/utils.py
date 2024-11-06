@@ -1,12 +1,12 @@
 import os
 import torch
+import torchaudio
 import numpy as np
 from torch.utils.data import (
     Dataset, 
     DataLoader,
     SubsetRandomSampler
 )
-import torchaudio
 
 class AudioDataset(Dataset):
     def __init__(self, audio_dir, features_dir, labels_dir):
