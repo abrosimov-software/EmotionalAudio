@@ -7,7 +7,7 @@ app = FastAPI()
 @app.post("/extract_data/")
 async def extract_data(source: Optional[str] = None):
     try:
-        data = []
+        data = src.extract_data(source)
         return {"message": f"extract_data from: {source or 'default'}", "extracted_data": data}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
