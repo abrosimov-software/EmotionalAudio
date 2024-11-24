@@ -12,3 +12,5 @@ ipython
 ipykernel
 spacy
 ydata_profiling
+transformers
+accelerate
