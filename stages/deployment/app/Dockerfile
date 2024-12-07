@@ -17,10 +17,6 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 HEALTHCHECK --interval=5m --timeout=3s \
   CMD curl -f http://localhost:${PORT}/ || exit 1
 
-# Set default environment variables for the app
-ENV PORT=8501 \
-    FASTAPI_URL="http://api:8000"
-
 # Expose the Streamlit port
 EXPOSE ${PORT}
 

@@ -3,7 +3,7 @@ import requests
 import os
 
 # Set FastAPI URL from environment variable
-fastapi_url = os.getenv("FASTAPI_URL", "http://api:8000")
+fastapi_url = os.getenv("FASTAPI_URL", "http://model_api:8000")
 
 st.title("ML Model Audio Prediction Interface")
 

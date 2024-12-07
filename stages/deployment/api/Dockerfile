@@ -1,7 +1,7 @@
 # stages/deployment/api/Dockerfile
 
-# Base image for Python
-FROM python:3.9-slim
+# Use an official PyTorch image with CUDA support
+FROM pytorch/pytorch:2.0.1-cuda11.7-cudnn8-runtime
 
 # Set working directory
 WORKDIR /app
@@ -12,11 +12,6 @@ COPY . /app
 # Install required libraries
 RUN pip install --upgrade pip
 RUN pip install --no-cache-dir -r /app/requirements.txt
-
-# Set default environment variables for the app
-ENV PORT=8000 \
-    HOST=0.0.0.0 \
-    WORKERS=4
 
 # Healthcheck to ensure the container is running
 HEALTHCHECK --interval=5m --timeout=3s \
