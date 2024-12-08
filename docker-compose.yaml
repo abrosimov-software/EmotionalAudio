@@ -9,10 +9,9 @@ services:
       - PORT=8080
       - HOST=0.0.0.0
       - WORKERS=4
-      - MLFLOW_TRACKING_URI=http://localhost:8080
-      - MLFLOW_EXPERIMENT_NAME=ml_experiment
     volumes:
       - ./data:/app/data
+      - ./stages/data_engineering:/app
 
   model_engineering:
     build:
@@ -27,12 +26,10 @@ services:
               capabilities: [gpu]
     volumes:
       - ./stages/model_engineering:/app
-      - ./data/raw/audiofiles:/app/data/training_data
+      - ./data/preprocessed:/app/training_data
       - ./models:/app/models
     environment:
       - PORT=8081
-      - MLFLOW_TRACKING_URI=http://localhost:8081
-      - MLFLOW_EXPERIMENT_NAME=ml_experiment
     ports:
       - "8081:8081"
     labels:

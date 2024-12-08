@@ -1,172 +1,84 @@
 import os
+import pandas as pd
 import torch
+from torch.nn.utils.rnn import pad_sequence
+from torch.utils.data import Dataset, DataLoader, SubsetRandomSampler
 import torchaudio
+from typing import Tuple
 import numpy as np
-from torch.utils.data import (
-    Dataset, 
-    DataLoader,
-    SubsetRandomSampler
-)
+
 
 class AudioDataset(Dataset):
-    def __init__(self, audio_dir, features_dir, labels_dir):
-        self.audio_files = sorted(os.listdir(audio_dir))
-        self.features_files = sorted(os.listdir(features_dir))
-        self.labels_files = sorted(os.listdir(labels_dir))
-        
-        self.audio_dir = audio_dir
-        self.features_dir = features_dir
-        self.labels_dir = labels_dir
+    def __init__(self, data_dir, metadata_file, sample_rate=16000):
+        self.data_dir = data_dir
+        self.metadata = pd.read_csv(metadata_file)
+        self.sample_rate = sample_rate
 
     def __len__(self):
-        return len(self.audio_files)
+        return len(self.metadata)
 
     def __getitem__(self, idx):
-        # Load audio tensor
-        audio_path = os.path.join(self.audio_dir, self.audio_files[idx])
-        audio = torch.load(audio_path)
-        
-        # Load features tensor
-        features_path = os.path.join(self.features_dir, self.features_files[idx])
-        features = torch.load(features_path)
-        
-        # Load labels tensor
-        labels_path = os.path.join(self.labels_dir, self.labels_files[idx])
-        labels = torch.load(labels_path)
-        
-        return audio, features, labels
-    
+        row = self.metadata.iloc[idx]
+        file_name = row["file_name"]
+        target = row["target"]
 
-class AnotherAudioDataset(Dataset):
-    def __init__(self, audio_dir, target_sample_rate=16000):
-        self.audio_files = sorted(os.listdir(audio_dir))
-        self.identifiers = [list(map(int, audio_file[:-4].split('-'))) for audio_file in self.audio_files]
-        self.audio_dir = audio_dir
-        self.target_sample_rate = target_sample_rate
-        self.num_classes = len(set(identifier[2] for identifier in self.identifiers)) + 1 # Add 1 for unknown class
+        audio_path = os.path.join(self.data_dir, "audiofiles", file_name)
+        if not os.path.exists(audio_path):
+            raise FileNotFoundError(f"Audio file {audio_path} not found.")
 
-    def __len__(self):
-        return len(self.audio_files)
-    
-    def __getitem__(self, idx):
-        # Load audio
-        audio_path = os.path.join(self.audio_dir, self.audio_files[idx])
-        audio, sample_rate = torchaudio.load(audio_path)
-        
-        # Resample if necessary
-        if sample_rate != self.target_sample_rate:
-            resampler = torchaudio.transforms.Resample(orig_freq=sample_rate, new_freq=self.target_sample_rate)
-            audio = resampler(audio)
-        if audio.shape[0] != 1:
-            audio = audio.mean(dim=0, keepdim=True)
-        
-        return audio, torch.tensor(self.identifiers[idx][2]), torch.tensor(self.identifiers[idx])
+        waveform, orig_sample_rate = torchaudio.load(audio_path)
 
-# Collate function for padding and batching
-def collate_audio(batch):
-    audios, targets, additional_features = zip(*batch)
-    
-    # Find the maximum length in the batch
-    max_length = max(audio.shape[1] for audio in audios)
-    
-    # Pad each audio to the max length
-    padded_audios = [torch.nn.functional.pad(audio, (0, max_length - audio.shape[1])) for audio in audios]
-    padded_audios = torch.stack(padded_audios)
-    
-    return padded_audios, torch.stack(targets), torch.stack(additional_features)
+        if orig_sample_rate != self.sample_rate:
+            waveform = torchaudio.transforms.Resample(orig_sample_rate, self.sample_rate)(waveform)
 
-# Function to split dataset by identifiers
-def create_data_loaders(dataset, batch_size=4, train_ratio=0.8, shuffle=True):
-    # Extract actor IDs from identifiers for splitting
-    actor_ids = [identifier[5] for identifier in dataset.identifiers]
-    unique_actors = np.unique(actor_ids)
-    
-    # Shuffle actors to randomize train/test split
-    if shuffle:
-        np.random.shuffle(unique_actors)
-    
-    # Split actors into training and testing
-    split_idx = int(len(unique_actors) * train_ratio)
-    train_actors = unique_actors[:split_idx]
-    test_actors = unique_actors[split_idx:]
-    
-    # Create index lists based on actor IDs
-    train_indices = [i for i, actor_id in enumerate(actor_ids) if actor_id in train_actors]
-    test_indices = [i for i, actor_id in enumerate(actor_ids) if actor_id in test_actors]
-    
-    # Define samplers for train and test loaders
-    train_sampler = SubsetRandomSampler(train_indices)
-    test_sampler = SubsetRandomSampler(test_indices)
-    
-    # Create DataLoaders
-    train_loader = DataLoader(dataset, batch_size=batch_size, sampler=train_sampler, collate_fn=collate_audio)
-    test_loader = DataLoader(dataset, batch_size=batch_size, sampler=test_sampler, collate_fn=collate_audio)
-    
-    return train_loader, test_loader
+        return waveform.squeeze(0).numpy(), target
+
+class DataCollator:
+    def __init__(self, processor):
+        self.processor = processor
+
+    def __call__(self, batch):
+        audios, labels = zip(*batch)
+
+        inputs = self.processor(audios, sampling_rate=16000, return_tensors="pt", padding=True)
+
+        return {
+            "input_values": inputs.input_values,
+            "attention_mask": inputs.get("attention_mask", None),
+            "labels": torch.tensor(labels, dtype=torch.long),
+        }
+
+def get_datasets(
+        data_dir: str,
+        metadata_file: str,
+        sample_rate: int = 16000,
+        random_seed: int = 42,
+        train_split: float = 0.8
+) -> Tuple[Dataset, Dataset]:
+    dataset = AudioDataset(data_dir, metadata_file, sample_rate)
+    dataset_size = len(dataset)
+    indices = list(range(dataset_size))
+
+    np.random.seed(random_seed)
+    np.random.shuffle(indices)
+
+    train_end = int(train_split * dataset_size)
+    train_indices = indices[:train_end]
+    val_indices = indices[train_end:]
+
+    train_dataset = torch.utils.data.Subset(dataset, train_indices)
+    val_dataset = torch.utils.data.Subset(dataset, val_indices)
+
+    return train_dataset, val_dataset
 
 
-# Calculate loss for training
-def calculate_loss(output, targets):
-    # Output shape: (n_batch, length, n_classes)
-    # Targets shape: (n_batch,)
-    # Average class probabilities along the length dimension
-    avg_output = torch.mean(output, dim=1)  # Shape: (n_batch, n_classes)
-    
-    # Calculate loss
-    loss = torch.nn.functional.cross_entropy(avg_output, targets)
-    return loss
 
-# Training function
-def train_model(model, data_loader, optimizer, device):
-    model.train()
-    total_loss = 0
-    
-    for batch in data_loader:
-        audios, targets, _ = batch
-        audios, targets = audios.to(device), targets.to(device)
-        
-        # Forward pass
-        optimizer.zero_grad()
-        output = model(audios)  # Output shape: (n_batch, length, n_classes)
-        
-        # Calculate loss
-        loss = calculate_loss(output, targets)
-        loss.backward()
-        optimizer.step()
-        
-        total_loss += loss.item()
-    
-    avg_loss = total_loss / len(data_loader)
-    print(f"Training Loss: {avg_loss:.4f}")
-    return avg_loss
+def collate_fn(batch):
+    waveforms, targets = zip(*batch)
 
+    waveforms_padded = pad_sequence(waveforms, batch_first=True)
 
-def test_model(model, data_loader, device):
-    model.eval()
-    total_loss = 0
-    
-    with torch.no_grad():
-        for batch in data_loader:
-            audios, targets, _ = batch
-            audios, targets = audios.to(device), targets.to(device)
-            
-            # Forward pass
-            output = model(audios)
+    targets = torch.tensor(targets, dtype=torch.long)
 
-            # Calculate loss
-            loss = calculate_loss(output, targets)
-            total_loss += loss.item()
+    return {"input_values": waveforms_padded, "labels": targets}
 
-    avg_loss = total_loss / len(data_loader)
-    print(f"Testing Loss: {avg_loss:.4f}")
-    return avg_loss
-        
-
-# # Set the directories
-# audio_dir = '../../data/preprocessed/audiofiles'
-# features_dir = '../../data/preprocessed/features'
-# labels_dir = '../../data/preprocessed/labels'
-
-# # Instantiate the dataset and dataloader
-# dataset = AudioDataset(audio_dir, features_dir, labels_dir)
-# dataloader = DataLoader(dataset, batch_size=32, shuffle=True, num_workers=4, pin_memory=True)

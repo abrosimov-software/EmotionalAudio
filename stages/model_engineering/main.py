@@ -1,119 +1,130 @@
-import os
+from transformers import (
+    AutoModelForAudioClassification,
+    AutoFeatureExtractor,
+    TrainingArguments,
+    Trainer,
+    AdamW,
+    get_scheduler,
+)
 import torch
-from torch.nn.utils.rnn import pad_sequence
-from transformers import HubertForSequenceClassification, Wav2Vec2ForSequenceClassification, TrainingArguments, Trainer
+from src.utils import get_datasets, DataCollator
+import os
+import evaluate
+import numpy as np
+import random
 
-class AudioDataset(torch.utils.data.Dataset):
-    def __init__(self, file_list, base_dir, max_length=None):
-        self.file_list = file_list
-        self.base_dir = base_dir
-        self.max_length = max_length  
+seed = 42
+random.seed(seed)
+np.random.seed(seed)
+torch.manual_seed(seed)
+torch.cuda.manual_seed_all(seed)
 
-    def __len__(self):
-        return len(self.file_list)
+# Constants
+data_dir = "/app/training_data"
+metadata_file = os.path.join(data_dir, "metadata.csv")
+models_dir = "/app/models"
+runs_dir = "/app/runs" # For models checkpoints
+logs_dir = "/app/logs" # For tensorboard logs
+num_classes = 8
+id2label = {
+    0: "neutral",
+    1: "calm",
+    2: "happy",
+    3: "sad",
+    4: "angry",
+    5: "fearful",
+    6: "disgust",
+    7: "surprised",
+}
+label2id = {v: k for k, v in id2label.items()}
 
-    def __getitem__(self, idx):
-        file_name = self.file_list[idx]
-        emotion = int(file_name.split("-")[2])
-        emotion = emotion - 1  
+# Initialize processor and model
+model_names = [
+    "ntu-spml/distilhubert",
+    "facebook/wav2vec2-base"
+]
+for model_name in model_names:
+    model_id = model_name.split("/")[-1]
 
-        input_values = torch.load(os.path.join(self.base_dir, "audiofiles", file_name))
-        if self.max_length is None:
-            self.max_length = input_values.size(0) // 2
-        input_values = input_values[:self.max_length]
+    model_runs_dir = os.path.join(runs_dir, model_id)
+    model_logs_dir = os.path.join(logs_dir, model_id)
+    model_output_dir = os.path.join(models_dir, model_id)
 
-        label_tensor = torch.tensor(emotion, dtype=torch.long)
+    os.makedirs(model_runs_dir, exist_ok=True)
+    os.makedirs(model_logs_dir, exist_ok=True)
+    os.makedirs(model_output_dir, exist_ok=True)
 
-        return {"input_values": input_values, "labels": label_tensor}
+    model = AutoModelForAudioClassification.from_pretrained(
+        model_name,
+        num_labels=num_classes,
+        id2label=id2label,
+        label2id=label2id,
+    )
+    processor = AutoFeatureExtractor.from_pretrained(model_name)
 
-def collate_fn(batch):
-    input_values = [item["input_values"].float() for item in batch]
-    max_length = max([x.size(0) for x in input_values]) 
-    input_values = [torch.nn.functional.pad(x, (0, max_length - x.size(0))) for x in input_values]
-    input_values = torch.stack(input_values) 
-    labels = torch.stack([item["labels"] for item in batch])
-    return {"input_values": input_values, "labels": labels}
+    # Get datasets
+    train_dataset, val_dataset = get_datasets(data_dir, metadata_file)
+    data_collator = DataCollator(processor)
 
+    # Training arguments
+    training_args = TrainingArguments(
+        output_dir=model_runs_dir,      # Checkpoints for this model
+        logging_dir=model_logs_dir,     # Logs for this model
+        num_train_epochs=10,                   # num_epochs
+        per_device_train_batch_size=8,         # train_batch_size
+        per_device_eval_batch_size=8,          # eval_batch_size
+        evaluation_strategy="epoch",
+        save_strategy="epoch",
+        logging_steps=10,
+        load_best_model_at_end=True,
+        metric_for_best_model="accuracy",
+        greater_is_better=True,
+        report_to=["tensorboard"],      # Enable TensorBoard logging
+        dataloader_num_workers=4,
+        learning_rate=5e-5,                    # learning_rate
+        seed=seed,                             # seed
+        lr_scheduler_type="linear",            # lr_scheduler_type
+        warmup_ratio=0.1,                      # lr_scheduler_warmup_ratio
+    )
 
+    import evaluate
+    metric = evaluate.load("accuracy")
 
-DATA_DIR = "data/training_data"
-audio_dir = os.path.join(DATA_DIR, "audiofiles")
-file_list = os.listdir(audio_dir)
+    def compute_metrics(eval_pred):
+        predictions = np.argmax(eval_pred.predictions, axis=1)
+        return metric.compute(predictions=predictions, references=eval_pred.label_ids)
 
-emotion_groups = {}
-for file_name in file_list:
-    emotion = int(file_name.split("-")[2])
-    emotion_groups.setdefault(emotion, []).append(file_name)
+    optimizer = AdamW(
+        model.parameters(),
+        lr=training_args.learning_rate,
+        betas=(0.9, 0.999),  # optimizer betas
+        eps=1e-08,           # optimizer epsilon
+    )
+    num_update_steps_per_epoch = len(train_dataset) // training_args.per_device_train_batch_size
+    if len(train_dataset) % training_args.per_device_train_batch_size != 0:
+        num_update_steps_per_epoch += 1
+    total_training_steps = num_update_steps_per_epoch * training_args.num_train_epochs
 
-train_files = []
-for emotion, files in emotion_groups.items():
-    train_files.extend(files) 
+    lr_scheduler = get_scheduler(
+        name=training_args.lr_scheduler_type,
+        optimizer=optimizer,
+        num_warmup_steps=int(training_args.warmup_ratio * total_training_steps),
+        num_training_steps=total_training_steps,
+    )
 
-# Prepare training dataset
-train_files = train_files[:50] 
-train_dataset = AudioDataset(train_files, DATA_DIR)
+    # Trainer
+    trainer = Trainer(
+        model=model,
+        args=training_args,
+        data_collator=data_collator,
+        train_dataset=train_dataset,
+        eval_dataset=val_dataset,
+        compute_metrics=compute_metrics,
+        optimizers=(optimizer, lr_scheduler),
+    )
 
-# Training arguments (shared)
-training_args = TrainingArguments(
-    max_grad_norm=1.0,  
-    output_dir="./results",
-    save_strategy="epoch", 
-    logging_strategy="epoch",  
-    logging_dir="./logs",
-    per_device_train_batch_size=1, 
-    gradient_accumulation_steps=8,  
-    num_train_epochs=3,
-    learning_rate=1e-5, 
-    weight_decay=0.01,
-    seed=42,
-    full_determinism=True,
-    disable_tqdm=True,  
-    no_cuda=True,  # Use CPU
-    report_to=[],  # Disable integrations
-)
+    # Train
+    trainer.train()
 
-
-MODEL_NAME_DISTILHUBERT = "pollner/distilhubert-finetuned-ravdess"
-model_distilhubert = HubertForSequenceClassification.from_pretrained(MODEL_NAME_DISTILHUBERT, num_labels=8)
-model_distilhubert.to("cpu") 
-
-print("Training DistilHuBERT...")
-trainer_distilhubert = Trainer(
-    model=model_distilhubert,
-    args=training_args,
-    train_dataset=train_dataset,
-    data_collator=collate_fn,
-)
-try:
-    trainer_distilhubert.train()
-except RuntimeError as e:
-    print(f"Training failed for DistilHuBERT: {e}")
-
-MODEL_DIR_DISTILHUBERT = "models/distilhubert"
-os.makedirs(MODEL_DIR_DISTILHUBERT, exist_ok=True)
-model_distilhubert.save_pretrained(MODEL_DIR_DISTILHUBERT)
-print("DistilHuBERT model fine-tuned and saved successfully.")
-
-
-MODEL_NAME_WAV2VEC2 = "firdho26/wav2vec2-large-xlsr-53-english-finetuned-ravdess"
-model_wav2vec2 = Wav2Vec2ForSequenceClassification.from_pretrained(MODEL_NAME_WAV2VEC2, num_labels=8)
-model_wav2vec2.to("cpu")  
-
-print("Training Wav2Vec2...")
-trainer_wav2vec2 = Trainer(
-    model=model_wav2vec2,
-    args=training_args,
-    train_dataset=train_dataset,
-    data_collator=collate_fn,
-)
-try:
-    trainer_wav2vec2.train()
-except RuntimeError as e:
-    print(f"Training failed for Wav2Vec2: {e}")
-
-MODEL_DIR_WAV2VEC2 = "models/wav2vec2"
-os.makedirs(MODEL_DIR_WAV2VEC2, exist_ok=True)
-model_wav2vec2.save_pretrained(MODEL_DIR_WAV2VEC2)
-print("Wav2Vec2 model fine-tuned and saved successfully.")
-
-
+    model.save_pretrained(model_output_dir)
+    processor.save_pretrained(model_output_dir)

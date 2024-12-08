@@ -1,41 +1,27 @@
 import os
-from typing import Optional, List
-from pydub import AudioSegment
 import requests
 import zipfile
 import io
-from microservice.src.feature_extraction import create_datafile
-import torch
-import torchaudio
-import numpy as np
 
-def collect_data():
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    audiofiles_dir = os.path.join(current_dir, 'data/raw/audiofiles')
+def collect_RAVDESS(data_path):
+    urls = [
+        "https://zenodo.org/records/1188976/files/Audio_Song_Actors_01-24.zip?download=1",
+        "https://zenodo.org/records/1188976/files/Audio_Speech_Actors_01-24.zip?download=1",
+    ]
 
-    archive1 = requests.get("https://zenodo.org/records/1188976/files/Audio_Song_Actors_01-24.zip?download=1").content
-    archive2 = requests.get("https://zenodo.org/records/1188976/files/Audio_Speech_Actors_01-24.zip?download=1").content
+    os.makedirs(data_path, exist_ok=True)
+
     try:
-        for archive in [archive1, archive2]:
+        for url in urls:
+            archive = requests.get(url).content
             with zipfile.ZipFile(io.BytesIO(archive)) as zip_ref:
-                for folder in zip_ref.infolist():
-                    zip_ref.extract(folder, audiofiles_dir)
+                for file_info in zip_ref.infolist():
+                    if not file_info.is_dir():
+                        file_name = os.path.basename(file_info.filename)
+                        target_path = os.path.join(data_path, file_name)
+                        with zip_ref.open(file_info) as source, open(target_path, 'wb') as target:
+                            target.write(source.read())
         return 0
-    except:
+    except Exception as e:
+        print(f"Error: {e}")
         return 1
-
-
-def extract_data(source: Optional[str] = None):
-    if source == None:
-        audiofiles_dir = os.path.join('data/raw/audiofiles')
-    else:
-        audiofiles_dir = os.path.join(f'data/{source}/audiofiles')
-    
-    dataset = {}
-    for folder in os.listdir(audiofiles_dir):
-        dataframe = {}
-        for filename in os.listdir(folder):
-            dataframe[filename] = AudioSegment.from_file(filename)
-        dataset[folder] = dataframe
-
-    return dataset
